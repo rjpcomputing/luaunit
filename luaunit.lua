@@ -5,8 +5,33 @@ Description: A unit testing framework
 Homepage: http://phil.freehackers.org/luaunit/
 Initial author: Ryu, Gwang (http://www.gpgstudy.com/gpgiki/LuaUnit)
 Lot of improvements by Philippe Fremy <phil@freehackers.org>
-Version: 1.3
+More improvements by Ryan P. <rjpcomputing@gmail.com>
+Version: 2.0
 License: X11 License, see LICENSE.txt
+
+Changes between 2.0 and 1.3:
+- This is a major update that has some breaking changes to make it much more easy to use and code in many different styles
+- Made the module only touch the global table for the asserts. You now use the module much more like Lua 5.2 when you require it.
+  You need to store the LuaUnit table after you require it to allow you access to the LuaUnit methods and variables.
+  (ex. local LuaUnit = require( "luaunit" ))
+- Made changes to the style of which LuaUnit forced users to code there test classes. It now is more layed back and give the ability to code in a few styles.
+	- Made "testable" classes able to start with 'test' or 'Test' for their name.
+	- Made "testable" methods able to start with 'test' or 'Test' for their name.
+	- Made testClass:setUp() methods able to be named with 'setUp' or 'Setup' or 'setup'.
+	- Made testClass:tearDown() methods able to be named with 'tearDown' or 'TearDown' or 'teardown'.
+	- Made LuaUnit.wrapFunctions() function able to be called with 'wrapFunctions' or 'WrapFunctions' or 'wrap_functions'.
+	- Made LuaUnit:run() method able to be called with 'run' or 'Run'.
+- Added the ability to tell if tables are equal using assertEquals.
+- Added LuaUnit.is<Type> and LuaUnit.is_<type> helper functions. (e.g. assert( LuaUnit.isString( getString() ) )
+- Added assert<Type> and assert_<type> 
+- Added assertNot<Type> and assert_not_<type>
+- Added _VERSION variable to hold the LuaUnit version
+- Added LuaUnit:setVerbosity(lvl) method to the LuaUnit table to allow you to control the verbosity now. If lvl is greater than 1 it will give verbose output.
+  This can be called from alias of LuaUnit.SetVerbosity() and LuaUnit:set_verbosity().
+- Moved wrapFunctions to the LuaUnit module table (e.g. local LuaUnit = require( "luaunit" ); LuaUnit.wrapFunctions( ... ) )
+- Fixed the verbosity to actually format in a way that is closer to other unit testing frameworks I have used.
+  NOTE: This is not the only way, I just thought the old output was way to verbose and duplicated the errors.
+- Made the errors only show in the "test report" section (at the end of the run)
 
 Changes between 1.3 and 1.2a:
 - port to lua 5.1
@@ -34,63 +59,68 @@ Changes between 1.1 and 1.0:
 - two verbosity level, like in python unittest
 ]]--
 
-argv = arg
+-- SETUP -----------------------------------------------------------------------
+--
+local argv = arg
+local typenames = { "Nil", "Boolean", "Number", "String", "Table", "Function", "Thread", "Userdata" }
 
 --[[ Some people like assertEquals( actual, expected ) and some people prefer 
 assertEquals( expected, actual ).
-
 ]]--
-USE_EXPECTED_ACTUAL_IN_ASSERT_EQUALS = true
+USE_EXPECTED_ACTUAL_IN_ASSERT_EQUALS = USE_EXPECTED_ACTUAL_IN_ASSERT_EQUALS or true
 
-function assertError(f, ...)
-	-- assert that calling f with the arguments will raise an error
-	-- example: assertError( f, 1, 2 ) => f(1,2) should generate an error
-	local has_error, error_msg = not pcall( f, ... )
-	if has_error then return end 
-	error( "No error generated", 2 )
-end
-
-function assertEquals(actual, expected)
-	-- assert that two values are equal and calls error else
-	if  actual ~= expected  then
-		local function wrapValue( v )
-			if type(v) == 'string' then return "'"..v.."'" end
-			return tostring(v)
+-- HELPER FUNCTIONS ------------------------------------------------------------
+--
+local function tablePrint(tt, indent, done)
+	done = done or {}
+	indent = indent or 0
+	if type(tt) == "table" then
+		local sb = {}
+		for key, value in pairs (tt) do
+			table.insert(sb, string.rep (" ", indent)) -- indent it
+			if type (value) == "table" and not done [value] then
+				done [value] = true
+				table.insert(sb, "{\n");
+				table.insert(sb, table_print (value, indent + 2, done))
+				table.insert(sb, string.rep (" ", indent)) -- indent it
+				table.insert(sb, "}\n");
+			elseif "number" == type(key) then
+				table.insert(sb, string.format("\"%s\"\n", tostring(value)))
+			else
+				table.insert(sb, string.format(
+				"%s = \"%s\"\n", tostring (key), tostring(value)))
+			end
 		end
-		if not USE_EXPECTED_ACTUAL_IN_ASSERT_EQUALS then
-			expected, actual = actual, expected
-		end
-
-		local errorMsg
-		if type(expected) == 'string' then
-			errorMsg = "\nexpected: "..wrapValue(expected).."\n"..
-                             "actual  : "..wrapValue(actual).."\n"
+			return table.concat(sb)
 		else
-			errorMsg = "expected: "..wrapValue(expected)..", actual: "..wrapValue(actual)
-		end
-		print (errorMsg)
-		error( errorMsg, 2 )
+			return tt .. "\n"
 	end
 end
 
-assert_equals = assertEquals
-assert_error = assertError
-
-function wrapFunctions(...)
-	-- Use me to wrap a set of functions into a Runnable test class:
-	-- TestToto = wrapFunctions( f1, f2, f3, f3, f5 )
-	-- Now, TestToto will be picked up by LuaUnit:run()
-	local testClass, testFunction
-	testClass = {}
-	local function storeAsMethod(idx, testName)
-		testFunction = _G[testName]
-		testClass[testName] = testFunction
-	end
-	table.foreachi( {...}, storeAsMethod )
-	return testClass
+local function toString( tbl )
+    if  "nil"       == type( tbl ) then
+        return tostring(nil)
+    elseif  "table" == type( tbl ) then
+        return table_print(tbl)
+    elseif  "string" == type( tbl ) then
+        return tbl
+    else
+        return tostring(tbl)
+    end
 end
 
-function __genOrderedIndex( t )
+local function tableMerge(t1, t2)
+    for k, v in pairs(t2) do
+        if (type(v) == "table") and (type(t1[k] or false) == "table") then
+            tableMerge(t1[k], t2[k])
+        else
+            t1[k] = v
+        end
+    end
+    return t1
+end
+
+local function __genOrderedIndex( t )
     local orderedIndex = {}
     for key,_ in pairs(t) do
         table.insert( orderedIndex, key )
@@ -99,7 +129,7 @@ function __genOrderedIndex( t )
     return orderedIndex
 end
 
-function orderedNext(t, state)
+local function orderedNext(t, state)
 	-- Equivalent of the next() function of table iteration, but returns the
 	-- keys in the alphabetic order. We use a temporary ordered key table that
 	-- is stored in the table being iterated.
@@ -128,14 +158,116 @@ function orderedNext(t, state)
     return
 end
 
-function orderedPairs(t)
+local function orderedPairs(t)
     -- Equivalent of the pairs() function on tables. Allows to iterate
     -- in order
     return orderedNext, t, nil
 end
 
--------------------------------------------------------------------------------
-UnitResult = { -- class
+-- ASSERT FUNCTIONS ------------------------------------------------------------
+--
+function assertError(f, ...)
+	-- assert that calling f with the arguments will raise an error
+	-- example: assertError( f, 1, 2 ) => f(1,2) should generate an error
+	local has_error, error_msg = not pcall( f, ... )
+	if has_error then return end 
+	error( "No error generated", 2 )
+end
+assert_error = assertError
+
+function assertTableEquals(actual, expected, message, errorLevel)
+	if not USE_EXPECTED_ACTUAL_IN_ASSERT_EQUALS then
+		expected, actual = actual, expected
+	end
+	message = message or ""
+	errorLevel = errorLevel or 1
+	if type( expected ) == "table" then
+		if type( actual ) ~= "table" then
+			error( "Expected table but was " .. type( actual ) .. " " .. tostring( actual ) .. " " .. message, errorLevel + 1 )
+		end
+		for k, v in pairs( tableMerge( actual, expected ) ) do
+			AssertTableEqual( expected[ k ], actual[ k ], message .. "[" .. k .. "]", errorLevel + 1 )
+		end
+	else
+		if type( actual ) == "table" then
+			error( "Expected " .. type( expected ) .. " but was table " .. toString( actual ) .. " " .. message, errorLevel + 1 )
+		end
+		if expected ~= actual then
+			error( "Expected " .. type( expected ) .. " " .. tostring( expected ) .. " but was " .. type( actual ) .. " " .. tostring( actual ) .. " " .. message, errorLevel + 1 )
+		end
+	end
+end
+assert_table_equals = assertTableEquals
+
+function assertEquals(actual, expected)
+	-- assert that two values are equal and calls error else
+	if not USE_EXPECTED_ACTUAL_IN_ASSERT_EQUALS then
+		expected, actual = actual, expected
+	end
+	
+	if 'table' == type(actual) then
+		assertTableEquals(actual, expected)
+	else
+		if  actual ~= expected  then
+			local function wrapValue( v )
+				if type(v) == 'string' then return "'"..v.."'" end
+				return tostring(v)
+			end
+			
+			local errorMsg
+			--if type(expected) == 'string' then
+			--	errorMsg = "\nexpected: "..wrapValue(expected).."\n"..
+			--					 "actual  : "..wrapValue(actual).."\n"
+			--else
+				errorMsg = "expected: "..wrapValue(expected)..", actual: "..wrapValue(actual)
+			--end
+			--print(errorMsg)
+			error(errorMsg, 2)
+		end
+	end
+end
+assert_equals = assertEquals
+
+-- assert_<type> functions
+for _, typename in ipairs(typenames) do
+	local tName = typename:lower()
+	local assert_typename = "assert"..typename
+	_G[assert_typename] = function(actual, msg)
+		local actualtype = type(actual)
+		if actualtype ~= tName then
+			local errorMsg = tName.." expected but was a "..actualtype
+			if msg then 
+				errorMsg = msg.."\n"..errorMsg
+			end
+			error(errorMsg, 2)
+		end
+		
+		return actual
+	end
+	-- Alias to lower underscore naming
+	_G["assert_"..tName] = _G[assert_typename]
+end
+
+-- assert_not_<type> functions
+for _, typename in ipairs(typenames) do
+	local tName = typename:lower()
+	local assert_not_typename = "assertNot"..typename
+	_G[assert_not_typename] = function(actual, msg)
+		if type(actual) == tName then
+			local errorMsg = tName.." not expected but was one"
+			if msg then 
+				errorMsg = msg.."\n"..errorMsg
+			end
+			error(errorMsg, 2)
+		end
+	end
+	-- Alias to lower underscore naming
+	_G["assert_not_"..tName] = _G[assert_not_typename]
+end
+
+-- UNITRESULT CLASS ------------------------------------------------------------
+--
+local UnitResult = { -- class
 	failureCount = 0,
 	testCount = 0,
 	errorList = {},
@@ -145,47 +277,51 @@ UnitResult = { -- class
 	verbosity = 1
 }
 	function UnitResult:displayClassName()
-		print( '>>>>>>>>> '.. self.currentClassName )
+		--if self.verbosity == 0 then print("") end
+		print(self.currentClassName)
 	end
 
 	function UnitResult:displayTestName()
-		if self.verbosity > 0 then
-			print( ">>> ".. self.currentTestName )
+		if self.verbosity == 0 then
+			io.stdout:write(".")
+		else
+			io.stdout:write(("  [%s]"):format(self.currentTestName))
 		end
 	end
 
-	function UnitResult:displayFailure( errorMsg )
+	function UnitResult:displayFailure(errorMsg)
 		if self.verbosity == 0 then
 			io.stdout:write("F")
 		else
-			print( errorMsg )
-			print( 'Failed' )
+			--print(errorMsg)
+			print(" Failed")
 		end
 	end
 
 	function UnitResult:displaySuccess()
-		if self.verbosity > 0 then
-			--print ("Ok" )
-		else 
+		if self.verbosity == 0 then
 			io.stdout:write(".")
+		else 
+			print(" Ok")
 		end
 	end
 
-	function UnitResult:displayOneFailedTest( failure )
-		testName, errorMsg = unpack( failure )
+	function UnitResult:displayOneFailedTest(failure)
+		testName, errorMsg = unpack(failure)
 		print(">>> "..testName.." failed")
-		print( errorMsg )
+		print(errorMsg)
 	end
 
 	function UnitResult:displayFailedTests()
-		if table.getn( self.errorList ) == 0 then return end
+		if #self.errorList == 0 then return end
 		print("Failed tests:")
 		print("-------------")
-		table.foreachi( self.errorList, self.displayOneFailedTest )
+		table.foreachi(self.errorList, self.displayOneFailedTest)
 		print()
 	end
 
 	function UnitResult:displayFinalResult()
+		if self.verbosity == 0 then print("") end
 		print("=========================================================")
 		self:displayFailedTests()
 		local failurePercent, successCount
@@ -203,6 +339,8 @@ UnitResult = { -- class
 	function UnitResult:startClass(className)
 		self.currentClassName = className
 		self:displayClassName()
+		-- indent status messages
+		if self.verbosity == 0 then io.stdout:write("\t") end
 	end
 
 	function UnitResult:startTest(testName)
@@ -227,10 +365,22 @@ UnitResult = { -- class
 
 -- class UnitResult end
 
-
-LuaUnit = {
-	result = UnitResult
+-- LUAUNIT CLASS ---------------------------------------------------------------
+--
+local LuaUnit = {
+	result = UnitResult,
+	_VERSION = "2.0"
 }
+	-- Sets the verbosity level
+	-- @param lvl {number} If greater than 0 there will be verbose output. Defaults to 0
+	function LuaUnit:setVerbosity(lvl)
+		self.result.verbosity = lvl or 0
+		assert("number" == type(lvl), ("bad argument #1 to 'setVerbosity' (number expected, got %s)"):format(type(lvl)))
+	end
+	-- Other alias's
+	LuaUnit.set_verbosity = LuaUnit.setVerbosity
+	LuaUnit.SetVerbosity = LuaUnit.setVerbosity
+	
 	-- Split text into a list consisting of the strings in text,
 	-- separated by strings matching delimiter (which may be a pattern). 
 	-- example: strsplit(",%s*", "Anna, Bob, Charlie,Dolores")
@@ -253,9 +403,33 @@ LuaUnit = {
 		return list
 	end
 
-	function LuaUnit.isFunction(aObject) 
-		return 'function' == type(aObject)
+	-- Type check functions
+	for _, typename in ipairs(typenames) do
+		local tName = typename:lower()
+		LuaUnit["is"..typename] = function(x)
+			return type(x) == tName
+		end
+		-- Alias to lower underscore naming
+		LuaUnit["is_"..tName] = LuaUnit["is"..typename]
 	end
+    
+    -- Use me to wrap a set of functions into a Runnable test class:
+	-- TestToto = wrapFunctions( f1, f2, f3, f3, f5 )
+	-- Now, TestToto will be picked up by LuaUnit:run()
+	function LuaUnit.wrapFunctions(...)
+		local testClass, testFunction
+		testClass = {}
+		local function storeAsMethod(idx, testName)
+			testFunction = _G[testName]
+			testClass[testName] = testFunction
+		end
+		table.foreachi( {...}, storeAsMethod )
+		
+		return testClass
+	end
+	-- Other alias's
+	LuaUnit.wrap_functions = LuaUnit.wrapFunctions
+	LuaUnit.WrapFunctions = LuaUnit.wrapFunctions
 
 	function LuaUnit.strip_luaunit_stack(stack_trace)
 		stack_list = LuaUnit.strsplit( "\n", stack_trace )
@@ -281,7 +455,11 @@ LuaUnit = {
 
 		-- run setUp first(if any)
 		if self.isFunction( aClassInstance.setUp) then
-				aClassInstance:setUp()
+			aClassInstance:setUp()
+		elseif self.isFunction( aClassInstance.Setup) then
+			aClassInstance:Setup()
+		elseif self.isFunction( aClassInstance.setup) then
+			aClassInstance:setup()
 		end
 
 		local function err_handler(e)
@@ -297,19 +475,24 @@ LuaUnit = {
 
 		-- lastly, run tearDown(if any)
 		if self.isFunction(aClassInstance.tearDown) then
-			 aClassInstance:tearDown()
+			aClassInstance:tearDown()
+		elseif self.isFunction(aClassInstance.TearDown) then
+			aClassInstance:TearDown()
+		elseif self.isFunction(aClassInstance.teardown) then
+			aClassInstance:teardown()
 		end
 
 		self.result:endTest()
     end
 
-	function LuaUnit:runTestMethodName( methodName, classInstance )
+	function LuaUnit:runTestMethodName(methodName, classInstance)
 		-- example: runTestMethodName( 'TestToto:testToto', TestToto )
 		local methodInstance = loadstring(methodName .. '()')
 		LuaUnit:runTestMethod(methodName, classInstance, methodInstance)
 	end
 
-    function LuaUnit:runTestClassByName( aClassName )
+    function LuaUnit:runTestClassByName(aClassName)
+		assert("table" == type(aClassName), ("bad argument #1 to 'runTestClassByName' (table expected, got %s). Make sure you are not trying to just pass functions not part of a class."):format(type(aClassName)))
 		-- example: runTestMethodName( 'TestToto' )
 		local hasMethod, methodName, classInstance
 		hasMethod = string.find(aClassName, ':' )
@@ -333,12 +516,11 @@ LuaUnit = {
 			-- run all test methods of the class
 			for methodName, method in orderedPairs(classInstance) do
 			--for methodName, method in classInstance do
-				if LuaUnit.isFunction(method) and string.sub(methodName, 1, 4) == "test" then
+				if LuaUnit.isFunction(method) and (string.sub(methodName, 1, 4) == "test" or string.sub(methodName, 1, 4) == "Test") then
 					LuaUnit:runTestMethodName( aClassName..':'.. methodName, classInstance )
 				end
 			end
 		end
-		print()
 	end
 
 	function LuaUnit:run(...)
@@ -349,20 +531,23 @@ LuaUnit = {
 		--
 		-- If arguments are passed, they must be strings of the class names 
 		-- that you want to run
-                args={...};
+		args = {...}
 		if #args > 0 then
 			table.foreachi( args, LuaUnit.runTestClassByName )
 		else 
-			if argv and #argv > 0 then
+			if argv and #argv > 1 then
+				-- Run files passed on the command line
 				table.foreachi(argv, LuaUnit.runTestClassByName )
 			else
 				-- create the list before. If you do not do it now, you
 				-- get undefined result because you modify _G while iterating
 				-- over it.
-				testClassList = {}
+				local testClassList = {}
 				for key, val in pairs(_G) do 
-					if string.sub(key,1,4) == 'Test' then 
-						table.insert( testClassList, key )
+					if "table" == type(val) then
+						if string.sub(key, 1, 4) == "Test" or string.sub(key, 1, 4) == "test" then
+							table.insert( testClassList, key )
+						end
 					end
 				end
 				for i, val in orderedPairs(testClassList) do 
@@ -370,7 +555,11 @@ LuaUnit = {
 				end
 			end
 		end
+		
 		return LuaUnit.result:displayFinalResult()
 	end
--- class LuaUnit
+	-- Other alias
+	LuaUnit.Run = LuaUnit.run
+-- end class LuaUnit
 
+return LuaUnit

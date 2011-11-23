@@ -1,5 +1,5 @@
 
-require('luaunit')
+local LuaUnit = require('luaunit')
 
 TestToto = {} --class
 
@@ -90,10 +90,10 @@ function test3()
     assert( 'a' == 'a')
 end
 
-TestFunctions = wrapFunctions( 'test1', 'test2', 'test3' )
+TestFunctions = LuaUnit.wrapFunctions( 'test1_withFailure', 'test2_withFailure', 'test3' )
 
--- LuaUnit:run( 'test2_withFailure' )  -- run only one test function
--- LuaUnit:run( 'test1_withFailure' )
+-- LuaUnit:run( 'TestFunctions:test2_withFailure' )  -- run only one test function
+ LuaUnit:run( 'test1_withFailure' )
 -- LuaUnit:run( 'TestToto' ) -- run only on test class
 -- LuaUnit:run( 'TestTiti:test3') -- run only one test method of a test class
-LuaUnit:run() -- run all tests
+--LuaUnit:run() -- run all tests

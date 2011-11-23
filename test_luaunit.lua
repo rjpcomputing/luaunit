@@ -12,7 +12,7 @@ License: X11 License, see LICENSE.txt
 
 -- This is a bit tricky since the test uses the features that it tests.
 
-require('luaunit')
+local LuaUnit = require('luaunit')
 
 TestLuaUnit = {} --class
     function TestLuaUnit:test_assertError()
