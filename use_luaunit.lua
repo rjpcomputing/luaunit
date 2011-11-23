@@ -93,7 +93,7 @@ end
 TestFunctions = LuaUnit.wrapFunctions( 'test1_withFailure', 'test2_withFailure', 'test3' )
 
 -- LuaUnit:run( 'TestFunctions:test2_withFailure' )  -- run only one test function
- LuaUnit:run( 'test1_withFailure' )
+-- LuaUnit:run( 'test1_withFailure' )		-- this causes an error because it is not part of a test class
 -- LuaUnit:run( 'TestToto' ) -- run only on test class
 -- LuaUnit:run( 'TestTiti:test3') -- run only one test method of a test class
---LuaUnit:run() -- run all tests
+LuaUnit:run() -- run all tests

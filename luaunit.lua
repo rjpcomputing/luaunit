@@ -317,7 +317,6 @@ local UnitResult = { -- class
 		print("Failed tests:")
 		print("-------------")
 		table.foreachi(self.errorList, self.displayOneFailedTest)
-		print()
 	end
 
 	function UnitResult:displayFinalResult()
@@ -492,7 +491,7 @@ local LuaUnit = {
 	end
 
     function LuaUnit:runTestClassByName(aClassName)
-		assert("table" == type(aClassName), ("bad argument #1 to 'runTestClassByName' (table expected, got %s). Make sure you are not trying to just pass functions not part of a class."):format(type(aClassName)))
+		--assert("table" == type(aClassName), ("bad argument #1 to 'runTestClassByName' (string expected, got %s). Make sure you are not trying to just pass functions not part of a class."):format(type(aClassName)))
 		-- example: runTestMethodName( 'TestToto' )
 		local hasMethod, methodName, classInstance
 		hasMethod = string.find(aClassName, ':' )
@@ -501,8 +500,8 @@ local LuaUnit = {
 			aClassName = string.sub(aClassName,1,hasMethod-1)
 		end
         classInstance = _G[aClassName]
-		if not classInstance then
-			error( "No such class: "..aClassName )
+		if "table" ~= type(classInstance) then
+			error("No such class: "..aClassName)
 		end
 
 		LuaUnit.result:startClass( aClassName )
@@ -551,7 +550,7 @@ local LuaUnit = {
 					end
 				end
 				for i, val in orderedPairs(testClassList) do 
-						LuaUnit:runTestClassByName(val)
+					LuaUnit:runTestClassByName(val)
 				end
 			end
 		end
