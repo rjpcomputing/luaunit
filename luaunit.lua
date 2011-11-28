@@ -21,7 +21,7 @@ Changes between 2.0 and 1.3:
 	- Made testClass:tearDown() methods able to be named with 'tearDown' or 'TearDown' or 'teardown'.
 	- Made LuaUnit.wrapFunctions() function able to be called with 'wrapFunctions' or 'WrapFunctions' or 'wrap_functions'.
 	- Made LuaUnit:run() method able to be called with 'run' or 'Run'.
-- Added the ability to tell if tables are equal using assertEquals.
+- Added the ability to tell if tables are equal using assertEquals. This uses a deep compare, not just the equality that they are the same memory address.
 - Added LuaUnit.is<Type> and LuaUnit.is_<type> helper functions. (e.g. assert( LuaUnit.isString( getString() ) )
 - Added assert<Type> and assert_<type> 
 - Added assertNot<Type> and assert_not_<type>
@@ -76,19 +76,19 @@ local function tablePrint(tt, indent, done)
 	indent = indent or 0
 	if type(tt) == "table" then
 		local sb = {}
-		for key, value in pairs (tt) do
-			table.insert(sb, string.rep (" ", indent)) -- indent it
-			if type (value) == "table" and not done [value] then
-				done [value] = true
-				table.insert(sb, "{\n");
-				table.insert(sb, table_print (value, indent + 2, done))
-				table.insert(sb, string.rep (" ", indent)) -- indent it
+		for key, value in pairs(tt) do
+			table.insert(sb, string.rep(" ", indent)) -- indent it
+			if type(value) == "table" and not done[value] then
+				done[value] = true
+				table.insert(sb, "[\""..key.."\"] = {\n");
+				table.insert(sb, tablePrint(value, indent + 2, done))
+				table.insert(sb, string.rep(" ", indent)) -- indent it
 				table.insert(sb, "}\n");
 			elseif "number" == type(key) then
 				table.insert(sb, string.format("\"%s\"\n", tostring(value)))
 			else
 				table.insert(sb, string.format(
-				"%s = \"%s\"\n", tostring (key), tostring(value)))
+				"%s = \"%s\"\n", tostring(key), tostring(value)))
 			end
 		end
 			return table.concat(sb)
@@ -101,7 +101,7 @@ local function toString( tbl )
     if  "nil"       == type( tbl ) then
         return tostring(nil)
     elseif  "table" == type( tbl ) then
-        return table_print(tbl)
+        return tablePrint(tbl)
     elseif  "string" == type( tbl ) then
         return tbl
     else
@@ -109,17 +109,28 @@ local function toString( tbl )
     end
 end
 
-local function tableMerge(t1, t2)
-    for k, v in pairs(t2) do
-        if (type(v) == "table") and (type(t1[k] or false) == "table") then
-            tableMerge(t1[k], t2[k])
-        else
-            t1[k] = v
-        end
-    end
-    return t1
+local function deepCompare(t1, t2, ignore_mt)
+	local ty1 = type(t1)
+	local ty2 = type(t2)
+	if ty1 ~= ty2 then return false end
+	-- non-table types can be directly compared
+	if ty1 ~= 'table' and ty2 ~= 'table' then return t1 == t2 end
+	-- as well as tables which have the metamethod __eq
+	local mt = getmetatable(t1)
+	if not ignore_mt and mt and mt.__eq then return t1 == t2 end
+	for k1,v1 in pairs(t1) do
+		local v2 = t2[k1]
+		if v2 == nil or not deepCompare(v1,v2) then return false end
+	end
+	for k2,v2 in pairs(t2) do
+		local v1 = t1[k2]
+		if v1 == nil or not deepCompare(v1,v2) then return false end
+	end
+	
+	return true
 end
 
+-- Order of testing
 local function __genOrderedIndex( t )
     local orderedIndex = {}
     for key,_ in pairs(t) do
@@ -175,38 +186,16 @@ function assertError(f, ...)
 end
 assert_error = assertError
 
-function assertTableEquals(actual, expected, message, errorLevel)
-	if not USE_EXPECTED_ACTUAL_IN_ASSERT_EQUALS then
-		expected, actual = actual, expected
-	end
-	message = message or ""
-	errorLevel = errorLevel or 1
-	if type( expected ) == "table" then
-		if type( actual ) ~= "table" then
-			error( "Expected table but was " .. type( actual ) .. " " .. tostring( actual ) .. " " .. message, errorLevel + 1 )
-		end
-		for k, v in pairs( tableMerge( actual, expected ) ) do
-			AssertTableEqual( expected[ k ], actual[ k ], message .. "[" .. k .. "]", errorLevel + 1 )
-		end
-	else
-		if type( actual ) == "table" then
-			error( "Expected " .. type( expected ) .. " but was table " .. toString( actual ) .. " " .. message, errorLevel + 1 )
-		end
-		if expected ~= actual then
-			error( "Expected " .. type( expected ) .. " " .. tostring( expected ) .. " but was " .. type( actual ) .. " " .. tostring( actual ) .. " " .. message, errorLevel + 1 )
-		end
-	end
-end
-assert_table_equals = assertTableEquals
-
 function assertEquals(actual, expected)
 	-- assert that two values are equal and calls error else
 	if not USE_EXPECTED_ACTUAL_IN_ASSERT_EQUALS then
 		expected, actual = actual, expected
 	end
 	
-	if 'table' == type(actual) then
-		assertTableEquals(actual, expected)
+	if "table" == type(actual) then
+		if not deepCompare(actual, expected, true) then
+			error("table expected: \n"..toString(expected)..", actual: \n"..toString(actual))
+		end
 	else
 		if  actual ~= expected  then
 			local function wrapValue( v )
@@ -285,7 +274,7 @@ local UnitResult = { -- class
 		if self.verbosity == 0 then
 			io.stdout:write(".")
 		else
-			io.stdout:write(("  [%s]"):format(self.currentTestName))
+			io.stdout:write(("  [%s] "):format(self.currentTestName))
 		end
 	end
 
@@ -294,7 +283,7 @@ local UnitResult = { -- class
 			io.stdout:write("F")
 		else
 			--print(errorMsg)
-			print(" Failed")
+			print("", "Failed")
 		end
 	end
 
@@ -302,7 +291,7 @@ local UnitResult = { -- class
 		if self.verbosity == 0 then
 			io.stdout:write(".")
 		else 
-			print(" Ok")
+			print("", "Ok")
 		end
 	end
 
@@ -374,7 +363,7 @@ local LuaUnit = {
 	-- @param lvl {number} If greater than 0 there will be verbose output. Defaults to 0
 	function LuaUnit:setVerbosity(lvl)
 		self.result.verbosity = lvl or 0
-		assert("number" == type(lvl), ("bad argument #1 to 'setVerbosity' (number expected, got %s)"):format(type(lvl)))
+		assert("number" == type(self.result.verbosity), ("bad argument #1 to 'setVerbosity' (number expected, got %s)"):format(type(self.result.verbosity)))
 	end
 	-- Other alias's
 	LuaUnit.set_verbosity = LuaUnit.setVerbosity
