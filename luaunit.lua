@@ -154,7 +154,7 @@ local function orderedNext(t, state)
     end
     -- fetch the next value
     key = nil
-    for i = 1,table.getn(t.__orderedIndex) do
+    for i = 1,#t.__orderedIndex do
         if t.__orderedIndex[i] == state then
             key = t.__orderedIndex[i+1]
         end
@@ -305,7 +305,7 @@ local UnitResult = { -- class
 		if #self.errorList == 0 then return end
 		print("Failed tests:")
 		print("-------------")
-		table.foreachi(self.errorList, self.displayOneFailedTest)
+                for i,v in ipairs(self.errorList) do self.displayOneFailedTest(i, v) end
 	end
 
 	function UnitResult:displayFinalResult()
@@ -411,7 +411,7 @@ local LuaUnit = {
 			testFunction = _G[testName]
 			testClass[testName] = testFunction
 		end
-		table.foreachi( {...}, storeAsMethod )
+                for i, v in ipairs {...} do storeAsMethod(i, v) end
 		
 		return testClass
 	end
@@ -422,7 +422,7 @@ local LuaUnit = {
 	function LuaUnit.strip_luaunit_stack(stack_trace)
 		stack_list = LuaUnit.strsplit( "\n", stack_trace )
 		strip_end = nil
-		for i = table.getn(stack_list),1,-1 do
+		for i = #stack_list,1,-1 do
 			-- a bit rude but it works !
 			if string.find(stack_list[i],"[C]: in function `xpcall'",0,true)
 				then
@@ -521,11 +521,11 @@ local LuaUnit = {
 		-- that you want to run
 		args = {...}
 		if #args > 0 then
-			table.foreachi( args, LuaUnit.runTestClassByName )
+                        for i, v in ipairs(args) do LuaUnit.runTestClassByName(i, v) end
 		else 
 			if argv and #argv > 1 then
 				-- Run files passed on the command line
-				table.foreachi(argv, LuaUnit.runTestClassByName )
+                                for i, v in ipairs(argv) do LuaUnit.runTestClassByName(i, v) end
 			else
 				-- create the list before. If you do not do it now, you
 				-- get undefined result because you modify _G while iterating
