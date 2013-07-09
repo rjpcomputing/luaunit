@@ -523,7 +523,7 @@ local LuaUnit = {
 		if #args > 0 then
                         for i, v in ipairs(args) do LuaUnit.runTestClassByName(i, v) end
 		else 
-			if argv and #argv > 1 then
+			if argv and #argv > 0 then
 				-- Run files passed on the command line
                                 for i, v in ipairs(argv) do LuaUnit.runTestClassByName(i, v) end
 			else
