@@ -194,7 +194,7 @@ function assertEquals(actual, expected)
 	
 	if "table" == type(actual) then
 		if not deepCompare(actual, expected, true) then
-			error("table expected: \n"..toString(expected)..", actual: \n"..toString(actual))
+			error("table expected: \n"..toString(expected)..", actual: \n"..toString(actual), 2)
 		end
 	else
 		if  actual ~= expected  then
