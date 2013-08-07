@@ -74,6 +74,15 @@ USE_EXPECTED_ACTUAL_IN_ASSERT_EQUALS = USE_EXPECTED_ACTUAL_IN_ASSERT_EQUALS or t
 local function tablePrint(tt, indent, done)
 	done = done or {}
 	indent = indent or 0
+
+	function format_value(value)
+		if "string" == type(value) then
+			return string.format("\"%s\"", tostring(value))
+		else
+			return tostring(value)
+		end
+	end
+
 	if type(tt) == "table" then
 		local sb = {}
 		for key, value in pairs(tt) do
@@ -85,10 +94,10 @@ local function tablePrint(tt, indent, done)
 				table.insert(sb, string.rep(" ", indent)) -- indent it
 				table.insert(sb, "}\n");
 			elseif "number" == type(key) then
-				table.insert(sb, string.format("\"%s\"\n", tostring(value)))
+				table.insert(sb, string.format("%s\n", format_value(value)))
 			else
-				table.insert(sb, string.format(
-				"%s = \"%s\"\n", tostring(key), tostring(value)))
+				table.insert(sb,
+				     string.format("%s = %s\n", tostring(key), format_value(value)))
 			end
 		end
 			return table.concat(sb)
