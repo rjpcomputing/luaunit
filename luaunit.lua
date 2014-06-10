@@ -6,8 +6,13 @@ Homepage: http://phil.freehackers.org/luaunit/
 Initial author: Ryu, Gwang (http://www.gpgstudy.com/gpgiki/LuaUnit)
 Lot of improvements by Philippe Fremy <phil@freehackers.org>
 More improvements by Ryan P. <rjpcomputing@gmail.com>
-Version: 2.0
+Version: 2.1
 License: X11 License, see LICENSE.txt
+
+Changes between 2.0 and 2.1:
+- Fix test selection from the command line.
+- Report caller's line number when assertEquals fails for tables.
+- When printing tables, only put quotes around strings.
 
 Changes between 2.0 and 1.3:
 - This is a major update that has some breaking changes to make it much more easy to use and code in many different styles
@@ -366,7 +371,7 @@ local UnitResult = { -- class
 --
 local LuaUnit = {
 	result = UnitResult,
-	_VERSION = "2.0"
+	_VERSION = "2.1"
 }
 	-- Sets the verbosity level
 	-- @param lvl {number} If greater than 0 there will be verbose output. Defaults to 0
