@@ -1,3 +1,4 @@
+#!/usr/bin/env lua
 
 local LuaUnit = require('luaunit')
 
