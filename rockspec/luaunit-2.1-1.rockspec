@@ -3,7 +3,7 @@ version = "2.1-1"
 source =
 {
 	url = "git://github.com/rjpcomputing/luaunit",
-	tag = "v2.1"
+	tag = "v2_1"
 }
 
 description =
