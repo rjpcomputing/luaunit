@@ -74,6 +74,15 @@ USE_EXPECTED_ACTUAL_IN_ASSERT_EQUALS = USE_EXPECTED_ACTUAL_IN_ASSERT_EQUALS or t
 local function tablePrint(tt, indent, done)
 	done = done or {}
 	indent = indent or 0
+
+	function format_value(value)
+		if "string" == type(value) then
+			return string.format("\"%s\"", tostring(value))
+		else
+			return tostring(value)
+		end
+	end
+
 	if type(tt) == "table" then
 		local sb = {}
 		for key, value in pairs(tt) do
@@ -85,10 +94,10 @@ local function tablePrint(tt, indent, done)
 				table.insert(sb, string.rep(" ", indent)) -- indent it
 				table.insert(sb, "}\n");
 			elseif "number" == type(key) then
-				table.insert(sb, string.format("\"%s\"\n", tostring(value)))
+				table.insert(sb, string.format("%s\n", format_value(value)))
 			else
-				table.insert(sb, string.format(
-				"%s = \"%s\"\n", tostring(key), tostring(value)))
+				table.insert(sb,
+				     string.format("%s = %s\n", tostring(key), format_value(value)))
 			end
 		end
 			return table.concat(sb)
@@ -194,7 +203,7 @@ function assertEquals(actual, expected)
 	
 	if "table" == type(actual) then
 		if not deepCompare(actual, expected, true) then
-			error("table expected: \n"..toString(expected)..", actual: \n"..toString(actual))
+			error("table expected: \n"..toString(expected)..", actual: \n"..toString(actual), 2)
 		end
 	else
 		if  actual ~= expected  then
@@ -523,7 +532,7 @@ local LuaUnit = {
 		if #args > 0 then
                         for i, v in ipairs(args) do LuaUnit.runTestClassByName(i, v) end
 		else 
-			if argv and #argv > 1 then
+			if argv and #argv > 0 then
 				-- Run files passed on the command line
                                 for i, v in ipairs(argv) do LuaUnit.runTestClassByName(i, v) end
 			else
