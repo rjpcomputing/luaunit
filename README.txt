@@ -24,3 +24,5 @@ v1.3: ported to lua 5.1
 
 v2.0: many usability and helper functions added. See the top of the source for all the details.
 
+v2.1: minor fixes. Thanks nweston.
+
